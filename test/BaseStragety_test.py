@@ -15,12 +15,55 @@ class BaseStragety(object):
     """
     基础策略对象
     """
-    def __init__(self, *args, **kwargs):
+    def __init__(self, stock_code, *args, **kwargs):
         """
         初始化对象的属性
         """
-        self.count = 0
-        self.max_count = 10
+        self.stock_code = stock_code
+
+        # 获取区域股票代码
+        if len(stock_code) != 6:
+            print("please input stock_code which length is 6 !")
+            raise ValueError("stock_code股票代码长度必须是6位数")
+        else:
+            if stock_code[:3] in ['600', '601', '603', '688']:
+                self.stock_area_code = 'sh' + stock_code
+                self.stock_code = stock_code
+            elif stock_code[:2] in ['00', '30']:
+                self.stock_area_code = 'sz' + stock_code
+                self.stock_code = stock_code
+            else:
+                raise ValueError("无法识别stock_code归属上证指数还是深证指数，请检查股票代码前三位是否为600、601或000")
+
+        # 监听的股票代码
+        self.listen_url_3s = "http://hq.sinajs.cn/list=%s" % self.stock_area_code
+
+    def listen(self):
+        """
+        监听实时流数据
+        :return:
+        """
+        pass
+
+    def stop_loss(self):
+        """
+        止损策略
+        :return:
+        """
+        pass
+
+    def stop_benifit(self):
+        """
+        止盈策略
+        :return:
+        """
+        pass
+
+    def starget_ma(self):
+        """
+        ma策略
+        :return:
+        """
 
     def run(self, *args, **kwargs):
         """
@@ -31,29 +74,20 @@ class BaseStragety(object):
         act = ""
         return act
 
-
-    def __iter__(self, *args, **kwargs):
+    def test(self):
         """
-        可以被next()函数调用并不断返回下一个值的对象称为迭代器：Iterator
-        生成器都是Iterator对象，但list、dict、str虽然是Iterable，却不是Iterator
-        意义：可节省内存空间，它与列表的区别在于，构建迭代器的时候，不像列表把所有元素一次性加载到内存，而是以一种延迟计算
+        回测
         :return:
         """
-        return self
+        pass
 
-
-    def __next__(self, *args, **kwargs):
+    def plot(self):
         """
-        可以被next()函数调用并不断返回下一个值的对象称为迭代器：Iterator。
-        :param args:
-        :param kwargs:
+        画图
         :return:
         """
-        if self.count < self.max_count:
-            print(self.count)
-            self.count += 1
-        else:
-            raise StopIteration()
+        pass
+
 
 
 if __name__ == "__main__":

@@ -12,8 +12,10 @@ import pandas as pd
 import pymysql
 import requests
 import matplotlib.pyplot as plt
-from constant_setting import STOP_LOSS_RATIO, STOP_BENIFIT_RATIO, TRADE_PER_VOLUME
-
+import matplotlib.ticker as ticker
+from constant_setting import STOP_LOSS_RATIO, STOP_BENIFIT_RATIO, TRADE_PER_VOLUME, TRADE_CD_TIME
+import MySQL_SET
+from datetime import datetime,timedelta
 
 class BaseStragety(object):
     """
@@ -68,6 +70,8 @@ class BaseStragety(object):
         self.main_dict = {}
         #
         self.test_df = None
+
+        self.last_order_time = '09:00:00'
 
     def sina_3s_listen(self, **kwargs):
         """
@@ -125,48 +129,60 @@ class BaseStragety(object):
         止盈或止损策略
         :return:
         """
+        is_act = False
         if len(self.order_list) % 2 == 1:
             last_order_dict = self.order_list[-1]
-            # 判断股票代码的一致性
-            if self.main_dict.get('stock_code') == last_order_dict.get('stock_code'):
-                trade_price = float(last_order_dict.get('price'))
-                current_price = float(self.main_dict.get('current_price'))
-                change_ration = current_price / trade_price - 1
-                # 止损
-                if change_ration < 0 and change_ration < STOP_LOSS_RATIO:
-                    if last_order_dict['trade_type'] == 'buy':
-                        trade_type = 'sell'
-                    else:
-                        trade_type = 'buy'
+            trade_price = float(last_order_dict.get('price'))
+            current_price = float(self.main_dict.get('current_price'))
+            change_ration = current_price / trade_price - 1
+            # 止损
+            if change_ration < 0 and -change_ration > STOP_LOSS_RATIO:
+                is_act =  True
 
-                    self.order = {'trade_type': trade_type, 'trade_time': self.main_dict['trade_time']
-                        , 'stock_code': self.main_dict['stock_code']
-                        , 'price': self.main_dict['current_price']
-                        , 'volume': TRADE_PER_VOLUME}
+            elif change_ration > 0 and change_ration > STOP_BENIFIT_RATIO:
+                is_act = True
 
-                    return True
+            elif self.main_dict['trade_time'] > '14:56:20':
+                is_act =  True
 
-                elif change_ration > 0 and change_ration > STOP_BENIFIT_RATIO:
-                    if last_order_dict['trade_type'] == 'buy':
-                        trade_type = 'sell'
-                    else:
-                        trade_type = 'buy'
+            else:
+                is_act = False
 
-                    self.order = {'trade_type': trade_type, 'trade_time': self.main_dict['trade_time']
-                        , 'stock_code': self.main_dict['stock_code']
-                        , 'price': self.main_dict['current_price']
-                        , 'volume': TRADE_PER_VOLUME}
+        if is_act:
+            if last_order_dict['trade_type'] == 'buy':
+                trade_type = 'sell'
+            else:
+                trade_type = 'buy'
 
-                    return True
+            self.order = {'trade_type': trade_type, 'trade_time': self.main_dict['trade_time']
+                , 'stock_code': self.main_dict['stock_code']
+                , 'price': self.main_dict['current_price']
+                , 'volume': TRADE_PER_VOLUME}
+            self.last_order_time = self.main_dict['trade_time']
 
-        return False
+        return is_act
 
     def stargety(self):
         """
+        形成买卖点时需定义self.order，且返回True
         策略，默认简单的ma策略
-        :return:
+        :return: True or False
         """
+        ma30 = self.df.current_price[-30:].sum()/30
+        if self.main_dict.get('current_price') < ma30:
+            delta_time = (datetime.strptime(self.main_dict['trade_time'], "%H:%M:%S") - datetime.strptime(self.last_order_time,"%H:%M:%S")).seconds
+            if delta_time > TRADE_CD_TIME:
+                self.order = {'trade_type': 'buy', 'trade_time': self.main_dict['trade_time']
+                    , 'stock_code': self.main_dict['stock_code']
+                    , 'price': self.main_dict['current_price']
+                    , 'volume': TRADE_PER_VOLUME}
+                return True
         return False
+
+    def exec_stargety(self):
+        if len(self.order_list) % 2 == 0:
+            if '09:40:00' < self.main_dict['trade_time'] < '14:56:00':
+                return self.stargety()
 
     def run(self, **kwargs):
         """
@@ -177,14 +193,9 @@ class BaseStragety(object):
         # 监听, 更新属性
         self.sina_3s_listen(**kwargs)
         # 止损或止盈
-        if self.stop():
-            pass
-        # 执行策略
-        elif self.stargety():
-            pass
-
-        act = ""
-        return act
+        if self.stop() or self.exec_stargety():
+            print(self.order)
+            self.order_list.append(self.order)
 
     def backtest(self, day_list=[]):
         """
@@ -227,6 +238,27 @@ class BaseStragety(object):
         # 画价格曲线图
         pic = fig.add_subplot(111)
         pic.plot(self.main_df.trade_time, self.main_df.current_price, c='black', label='price')
+        pic.xaxis.set_major_locator(ticker.MultipleLocator(600))
+
+        ##叠加买入散点图
+        x_list = list(self.main_df.trade_time)
+        buy_x, buy_y, sell_x, sell_y = [], [], [], []
+        for order in self.order_list:
+            if order['trade_type'] == 'buy':
+                buy_x.append(x_list.index(order['trade_time']))
+                buy_y.append(order['price'])
+            elif order['trade_type'] == 'sell':
+                sell_x.append(x_list.index(order['trade_time']))
+                sell_y.append(order['price'])
+
+        plt.scatter(buy_x, buy_y, c='r')
+        # 标记文字
+        for i, v in enumerate(buy_x):
+            plt.annotate('buy:%.2f' % buy_y[i], (buy_x[i], buy_y[i]))
+        plt.scatter(sell_x, sell_y, c='g')
+        # 标记文字
+        for i, v in enumerate(sell_x):
+            plt.annotate('sell:%.2f' % sell_y[i], (sell_x[i], sell_y[i]))
 
     def send_sql(self, sql, is_return=1):
         """
@@ -234,7 +266,7 @@ class BaseStragety(object):
         :param is_return: 是否要返回值, 1返回，0不返回
         :return: DataFrame
         """
-        server_conn = pymysql.connect()
+        server_conn = pymysql.connect(host=MySQL_SET.HOST, port=MySQL_SET.PORT, user=MySQL_SET.USER, passwd=MySQL_SET.PWD, charset='utf8', local_infile=True)
 
         server_cursor = server_conn.cursor()
         server_cursor.execute(sql)
@@ -263,3 +295,4 @@ if __name__ == "__main__":
     t = BaseStragety(stock_code_list=['600036'])
     # t.run()
     t.backtest(day_list=['2021-03-15'])
+    t.plot()

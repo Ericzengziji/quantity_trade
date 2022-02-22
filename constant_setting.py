@@ -16,6 +16,7 @@ STOP_BENIFIT_RATIO = 0.02
 # 手续费
 TRADE_COST = 0.002
 # 每笔交易之间的间隔时间，单位秒
-TRADE_CD_TIME = 60
+TRADE_CD_TIME = 5 * 60
 # 每笔交易的股数
 TRADE_PER_VOLUME = 100
+

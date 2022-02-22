@@ -53,6 +53,8 @@ class BaseStragety(object):
         self.order_list = []
         # 订单信息，买还是卖、啥时候、哪只、交易哪个、交易多少，{'trade_type': '', 'trade_time': '', 'stock_code': '', 'price': '', 'volume': 0}
         self.order = None
+        # 利润
+        self.profit = 0
 
         # DataFrame存储数据
         self.columns_name = ["stock_code", "today_open_price", "yester_close_price", "current_price"
@@ -168,15 +170,17 @@ class BaseStragety(object):
         策略，默认简单的ma策略
         :return: True or False
         """
-        ma30 = self.df.current_price[-30:].sum()/30
-        if self.main_dict.get('current_price') < ma30:
-            delta_time = (datetime.strptime(self.main_dict['trade_time'], "%H:%M:%S") - datetime.strptime(self.last_order_time,"%H:%M:%S")).seconds
-            if delta_time > TRADE_CD_TIME:
-                self.order = {'trade_type': 'buy', 'trade_time': self.main_dict['trade_time']
-                    , 'stock_code': self.main_dict['stock_code']
-                    , 'price': self.main_dict['current_price']
-                    , 'volume': TRADE_PER_VOLUME}
-                return True
+        step = 100
+        if len(self.df.current_price) > step:
+            ma = self.df.current_price[-step:].sum()/step
+            if self.main_dict.get('current_price') < ma:
+                delta_time = (datetime.strptime(self.main_dict['trade_time'], "%H:%M:%S") - datetime.strptime(self.last_order_time,"%H:%M:%S")).seconds
+                if delta_time > TRADE_CD_TIME:
+                    self.order = {'trade_type': 'buy', 'trade_time': self.main_dict['trade_time']
+                        , 'stock_code': self.main_dict['stock_code']
+                        , 'price': self.main_dict['current_price']
+                        , 'volume': TRADE_PER_VOLUME}
+                    return True
         return False
 
     def exec_stargety(self):
@@ -251,14 +255,29 @@ class BaseStragety(object):
                 sell_x.append(x_list.index(order['trade_time']))
                 sell_y.append(order['price'])
 
-        plt.scatter(buy_x, buy_y, c='r')
+        pic.scatter(buy_x, buy_y, c='r')
         # 标记文字
         for i, v in enumerate(buy_x):
-            plt.annotate('buy:%.2f' % buy_y[i], (buy_x[i], buy_y[i]))
-        plt.scatter(sell_x, sell_y, c='g')
+            pic.annotate('buy:%.2f' % buy_y[i], (buy_x[i], buy_y[i]))
+        pic.scatter(sell_x, sell_y, c='g')
         # 标记文字
         for i, v in enumerate(sell_x):
-            plt.annotate('sell:%.2f' % sell_y[i], (sell_x[i], sell_y[i]))
+            pic.annotate('sell:%.2f' % sell_y[i], (sell_x[i], sell_y[i]))
+
+        # 设置标题
+        pic.set_title('%s_%s_%.2f' % (self.main_stock_code, self.main_dict['trade_day'].replace('-', '')[-4:], self.cal_profit()), fontsize=18)
+
+    def cal_profit(self):
+        for order in self.order_list:
+            if order['trade_type'] == 'buy':
+                self.profit -= order['price'] * order['volume']
+            else:
+                self.profit += order['price'] * order['volume']
+
+            # 千1手续费
+            self.profit -= order['price'] * order['volume'] * 0.001
+
+        return self.profit
 
     def send_sql(self, sql, is_return=1):
         """
@@ -294,5 +313,5 @@ class BaseStragety(object):
 if __name__ == "__main__":
     t = BaseStragety(stock_code_list=['600036'])
     # t.run()
-    t.backtest(day_list=['2021-03-15'])
+    t.backtest(day_list=['2021-03-16'])
     t.plot()

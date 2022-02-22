@@ -72,8 +72,12 @@ class BaseStragety(object):
         self.main_dict = {}
         #
         self.test_df = None
+        #
+        self.last_order_time = '09:00:00'\
 
-        self.last_order_time = '09:00:00'
+        #
+        self.STOP_LOSS_RATIO, self.STOP_BENIFIT_RATIO = STOP_LOSS_RATIO, STOP_BENIFIT_RATIO
+        self.TRADE_PER_VOLUME, self.TRADE_CD_TIME = TRADE_PER_VOLUME, TRADE_CD_TIME
 
     def sina_3s_listen(self, **kwargs):
         """
@@ -138,10 +142,10 @@ class BaseStragety(object):
             current_price = float(self.main_dict.get('current_price'))
             change_ration = current_price / trade_price - 1
             # 止损
-            if change_ration < 0 and -change_ration > STOP_LOSS_RATIO:
+            if change_ration < 0 and -change_ration > self.STOP_LOSS_RATIO:
                 is_act =  True
 
-            elif change_ration > 0 and change_ration > STOP_BENIFIT_RATIO:
+            elif change_ration > 0 and change_ration > self.STOP_BENIFIT_RATIO:
                 is_act = True
 
             elif self.main_dict['trade_time'] > '14:56:20':
@@ -159,7 +163,7 @@ class BaseStragety(object):
             self.order = {'trade_type': trade_type, 'trade_time': self.main_dict['trade_time']
                 , 'stock_code': self.main_dict['stock_code']
                 , 'price': self.main_dict['current_price']
-                , 'volume': TRADE_PER_VOLUME}
+                , 'volume': self.TRADE_PER_VOLUME}
             self.last_order_time = self.main_dict['trade_time']
 
         return is_act
@@ -174,19 +178,21 @@ class BaseStragety(object):
         if len(self.df.current_price) > step:
             ma = self.df.current_price[-step:].sum()/step
             if self.main_dict.get('current_price') < ma:
-                delta_time = (datetime.strptime(self.main_dict['trade_time'], "%H:%M:%S") - datetime.strptime(self.last_order_time,"%H:%M:%S")).seconds
-                if delta_time > TRADE_CD_TIME:
-                    self.order = {'trade_type': 'buy', 'trade_time': self.main_dict['trade_time']
-                        , 'stock_code': self.main_dict['stock_code']
-                        , 'price': self.main_dict['current_price']
-                        , 'volume': TRADE_PER_VOLUME}
-                    return True
+                self.order = {'trade_type': 'buy', 'trade_time': self.main_dict['trade_time']
+                    , 'stock_code': self.main_dict['stock_code']
+                    , 'price': self.main_dict['current_price']
+                    , 'volume': self.TRADE_PER_VOLUME}
+                self.last_order_time = self.main_dict['trade_time']
+                return True
         return False
 
     def exec_stargety(self):
         if len(self.order_list) % 2 == 0:
             if '09:40:00' < self.main_dict['trade_time'] < '14:56:00':
-                return self.stargety()
+                delta_time = (datetime.strptime(self.main_dict['trade_time'], "%H:%M:%S") - datetime.strptime(
+                    self.last_order_time, "%H:%M:%S")).seconds
+                if delta_time > self.TRADE_CD_TIME:
+                    return self.stargety()
 
     def run(self, **kwargs):
         """

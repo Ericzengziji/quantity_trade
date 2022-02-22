@@ -234,8 +234,7 @@ class BaseStragety(object):
         :param is_return: 是否要返回值, 1返回，0不返回
         :return: DataFrame
         """
-        server_conn = pymysql.connect(host='106.12.139.61', port=3306, user='admin_etl', passwd='Etl@123456',
-                                      db='stock_db', charset='utf8')
+        server_conn = pymysql.connect()
 
         server_cursor = server_conn.cursor()
         server_cursor.execute(sql)

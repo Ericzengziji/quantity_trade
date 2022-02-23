@@ -68,14 +68,14 @@ class BaseStragety(object):
 
         self.df = pd.DataFrame([], columns=self.columns_name)
         self.main_df = None
-        #
+        # 最新一条的main stock code对应的字典信息
         self.main_dict = {}
-        #
+        # 回测取数的df
         self.test_df = None
         #
         self.last_order_time = '09:00:00'\
 
-        #
+        # 常量
         self.STOP_LOSS_RATIO, self.STOP_BENIFIT_RATIO = STOP_LOSS_RATIO, STOP_BENIFIT_RATIO
         self.TRADE_PER_VOLUME, self.TRADE_CD_TIME = TRADE_PER_VOLUME, TRADE_CD_TIME
 
